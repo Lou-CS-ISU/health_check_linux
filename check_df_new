@@ -1,0 +1,64 @@
+#! /bin/ksh
+
+PROG=`basename $0`
+PROGDIR=`dirname $0`
+HOST=`uname -n | cut -d. -f1`
+LOGDIR=~/health_out/$(hostname)
+
+lRC=0
+
+LASTLOG=`ls -rlt $LOGDIR/health_check*html | tail -2 | head -1 | awk '{ print $9}'`
+
+# Filesystem check
+
+echo "<TABLE  cellSpacing=5 border=1 cellPadding=0>" 
+echo "<TBODY>" 
+
+echo "<TR><TD align=center bgcolor=lightyellow>File System</TD align=center bgcolor=lightyellow><TD align=center bgcolor=lightyellow>Threshold</TD align=center bgcolor=lightyellow><TD align=center bgcolor=lightyellow>Current Usage</TD align=center bgcolor=lightyellow><TD align=center bgcolor=lightyellow>Status</TD align=center bgcolor=lightyellow></TR>" 
+
+for i in `cat $PROGDIR/$PROG.$HOST.env`
+do
+	FS=`echo $i | cut -d"|" -f1`
+	FS_THRESHOLD=`echo $i | cut -d"|" -f2`
+	PERCENT=`df -k $FS | grep % | grep -Ev ^Filesystem | awk '{split($(NF-1), a, "%"); print a[1]}'`
+
+        if [ -z $LASTLOG ]; then
+		LAST_PERCENT=0
+		echo "<TR><TD align=center bgcolor=ivory>$FS</TD align=center bgcolor=ivory><TD align=center bgcolor=ivory>${FS_THRESHOLD}%</TD align=center bgcolor=ivory><TD align=center bgcolor=ivory>${PERCENT}%</TD align=center bgcolor=ivory><TD align=center bgcolor=ivory>SUCCESS</TD align=center bgcolor=ivory></TR>"
+    
+        else
+		LAST_PERCENT=`grep -e ">$FS<" $LASTLOG | awk -F "%" '{ print $2 }' | perl -e 's/.*>//g' -p`
+	
+		if [ $PERCENT -ge $FS_THRESHOLD ] && [ ${#LAST_PERCENT} -gt 0 ] && [ $LAST_PERCENT -lt $PERCENT ] 
+		then
+        		echo "<TR><TD align=center bgcolor=red>$FS</TD align=center bgcolor=red><TD align=center bgcolor=red>${FS_THRESHOLD}%</TD align=center bgcolor=red><TD align=center bgcolor=red>${PERCENT}%</TD align=center bgcolor=red><TD align=center bgcolor=red>FAILURE</TD align=center bgcolor=red></TR>"
+                	lRC=`expr $lRC + 1`
+       
+		elif [ $PERCENT -ge $FS_THRESHOLD ] && [ ${#LAST_PERCENT} -gt 0 ] && [ $PERCENT == 100 ]
+        	then
+        		echo "<TR><TD align=center bgcolor=red>$FS</TD align=center bgcolor=red><TD align=center bgcolor=red>${FS_THRESHOLD}%</TD align=center bgcolor=red><TD align=center bgcolor=red>${PERCENT}%</TD align=center bgcolor=red><TD align=center bgcolor=red>FAILURE</TD align=center bgcolor=red></TR>"
+                        lRC=`expr $lRC + 1`        
+
+		elif [ $PERCENT -ge $FS_THRESHOLD ] && [ ${#LAST_PERCENT} -gt 0 ] 
+        	then
+        		echo -e "<TR><TD align=center bgcolor=yellow>$FS</TD align=center bgcolor=yellow><TD align=center bgcolor=yellow>${FS_THRESHOLD}%</TD align=center bgcolor=yellow><TD align=center bgcolor=yellow>${PERCENT}%</TD align=center bgcolor=yellow><TD align=center bgcolor=yellow>PREVIOUSLY REPORTED FAILURE</TD align=center bgcolor=yellow></TR>"
+
+        	elif  [ $PERCENT -ge $FS_THRESHOLD ]
+        	then
+			echo "<TR><TD align=center bgcolor=red>$FS</TD align=center bgcolor=red><TD align=center bgcolor=red>${FS_THRESHOLD}%</TD align=center bgcolor=red><TD align=center bgcolor=red>${PERCENT}%</TD align=center bgcolor=red><TD align=center bgcolor=red>FAILURE</TD align=center bgcolor=red></TR>"
+			lRC=`expr $lRC + 1`
+		else
+			echo "<TR><TD align=center bgcolor=ivory>$FS</TD align=center bgcolor=ivory><TD align=center bgcolor=ivory>${FS_THRESHOLD}%</TD align=center bgcolor=ivory><TD align=center bgcolor=ivory>${PERCENT}%</TD align=center bgcolor=ivory><TD align=center bgcolor=ivory>SUCCESS</TD align=center bgcolor=ivory></TR>"
+		fi
+
+	fi
+done
+echo "</TBODY>" 
+echo "</TABLE>" 
+
+if [ $lRC -gt 0 ]; then
+   echo "SAN ISSUE " >> "/tmp/subject_issues"
+fi
+
+exit $lRC
+

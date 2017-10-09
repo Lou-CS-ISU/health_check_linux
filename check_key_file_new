@@ -1,0 +1,79 @@
+#! /bin/sh
+
+PROG=`basename $0`
+PROGDIR=`dirname $0`
+
+NOW=`date '+%Y%m%d_%H%M%S'`
+
+m_env -v > /dev/null 2>&1
+
+if [ `ab-key show | grep "Key ID:" | wc -l` -ge 2 ]
+then
+	echo More than one Key ID in the current license file, this script can only compare a unique licsense key file. Exiting.
+	exit 1
+fi
+
+if [ -z "$2" ]
+then
+	CURR_KEYFILE=$(ab-key show | grep / | head -1)
+	CURR_KEYFILE_real=$(basename $CURR_KEYFILE)
+else
+	CURR_KEYFILE=$1
+	CURR_KEYFILE_real=$(basename $CURR_KEYFILE)
+fi
+
+HOST=`uname -n`
+
+if [ ! -z "$2" ]
+then
+        AB_NEW_KEY_FILE_O=$2
+else
+        AB_NEW_KEY_FILE_O=`grep -l $HOST /tmp/*.key.txt 2>/dev/null`
+fi
+
+if [ -z "$AB_NEW_KEY_FILE_O" ]
+then
+	echo No license file found in /tmp. Exiting.
+	echo Usage: $PROG [{current license file} {new license file}]
+	exit 1
+fi
+
+sed 's/\r//' $CURR_KEYFILE > /tmp/$CURR_KEYFILE_real.curr
+sed 's/\r//' $AB_NEW_KEY_FILE_O > $AB_NEW_KEY_FILE_O.new
+
+cleanse()
+{
+	awk '{
+		# print "$1 = |" $1 "|";
+		if ( $1 == "<computer-info" ) 
+			start=1;
+	
+		if (start == 1) {
+			split($1, a, "=");
+	
+			if ( a[1] == "product-data" ) 
+				next;
+			print;
+		}
+	}' $1
+}
+
+cleanse /tmp/$CURR_KEYFILE_real.curr > /tmp/$CURR_KEYFILE_real.curr.1
+cleanse $AB_NEW_KEY_FILE_O.new > $AB_NEW_KEY_FILE_O.new.1
+
+diff -b --minimal --side-by-side /tmp/$CURR_KEYFILE_real.curr.1 $AB_NEW_KEY_FILE_O.new.1 > /tmp/$PROG.out
+
+awk '{ 
+	found=0;
+	for (i=1; i<=NF; i++) 
+		if ($i == "|" || $i == "<" || $i == ">") 
+			found=1;
+
+	if ( found == 1 )
+		printf "%c[47;31;31m%s%c[0m\n", 27, $0, 27;
+	else
+		print;
+}' /tmp/$PROG.out
+
+rm -f /tmp/$CURR_KEYFILE.curr $AB_NEW_KEY_FILE_O.new /tmp/$CURR_KEYFILE.curr.1 $AB_NEW_KEY_FILE_O.new.1 /tmp/$PROG.out
+

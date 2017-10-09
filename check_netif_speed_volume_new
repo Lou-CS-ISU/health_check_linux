@@ -1,0 +1,183 @@
+#! /usr/bin/perl
+
+# this script has only tested on : Linux 2.6.9-42.0.2.ELsmp 
+# it will not work on other verision / platform
+
+# if ( $ARGV[0] ne "-m"  || $ARGV[1] eq "" ) {
+# 	print "usage:\n";
+# 	@PROG=split(/\//, $0);
+# 	print $PROG[$#PROG] . " -m {email address}\n";
+# 	print "for example: " . $PROG[$#PROG] . " -m john.smith\@citigroup.com\n";
+# 	exit 1;
+# }
+
+# print "ARGV 0 = " . $ARGV[0] . " ARGV 1 = " . $ARGV[1] . "\n";
+
+$email=$ARGV[1];
+$alert=0;
+
+# print "email = " . $email . "\n";
+
+@host=`uname -n`;
+
+# dmesg | grep -i duplex  | awk '{
+# 	for ( i = 5; i <= NF; i++ ) {
+# 		if ( $i == "Mbps" ) {
+# 			print $2 " " $(i-1) " " $(i+1);
+# 		}
+# 	}
+# }'
+
+@lines=`dmesg | grep -i duplex`;
+
+for ( $i = 0; $i <= $#lines; $i++) {
+	@a=split(/ /, $lines[$i]);
+	@ni=split(/:/, $a[1]);
+	for ( $j = 0; $j <= $#a; $j++ ) {
+		if ( $a[$j] eq "Mbps" || $a[$j] eq "Mbps," ) {
+#			print $a[1] . " " . $a[$j-1] . " " . $a[$j+1] . "\n";
+			$network{$ni[0]} = $a[$j-1] . " " . $a[$j+1];
+		}
+	}
+}
+
+# foreach $key (keys %network)
+# {
+# 	print "network interface $key is $network{$key}\n";
+# }
+
+@lines=`/sbin/ifconfig -a | grep HWaddr`;
+
+@a=();
+for  ( $i = 0; $i <= $#lines; $i++) {
+#	print $lines[$i];
+	@ni=split(/[ \t]/, $lines[$i]);
+#	print $ni[0] . "\n";
+	@a=(@a, $ni[0]);
+}
+
+for ( $i = 0; $i <= $#a; $i++) {
+	@e=`/sbin/ifconfig $a[$i] | grep "HWaddr"`;
+	@ni=split(/[ \t]+/, $e[0]);
+	if ( $ni[4] eq "" ) {
+		next;
+	}
+
+	$hwaddr{$a[$i]}=substr($ni[4],0,17);
+	$etheraddr{$ni[4]}=$a[$i];
+
+	@b=`/sbin/ifconfig $a[$i] | grep "inet addr"`;
+	@c=split(/:/, $b[0]);
+	@d=split(/[ \t]/, $c[1]);
+#		print $d[0] . "\n";
+
+	$ip{$a[$i]}=$d[0];
+
+	if ( $d[0] ne "" ) {
+		@b=`nslookup $d[0] | grep "name = "`;
+
+#		for ( $j = 0; $j <= $#b; $j++) {
+#			print $b[$j];
+#		}
+
+		@c=split(/[ \t]+/, $b[0]);
+		@d=split(/\./, $c[3]);
+
+		$hostname{$a[$i]}=$d[0];
+	}
+
+	@b=`/sbin/ifconfig $a[$i] | grep "RX bytes"`;
+	@c=split(/\(/, $b[0]);
+	@d=split(/\)/, $c[1]);
+	@dd=split(/\)/, $c[2]);
+
+	$RX{$a[$i]}=$d[0];
+	$TX{$a[$i]}=$dd[0];
+}
+
+if ( $ARGV == "" ) {
+	open (MAIL, "| cat");
+} else {
+	open (MAIL, "| /usr/lib/sendmail -t -v");
+	print MAIL "From: " . $email . "\n";
+	print MAIL "To: " . $email . "\n";
+	print MAIL "Subject: $host[0] network interfaces status\n";
+	print MAIL "Content-Type: text/html; charset=us-ascii\n";
+}
+
+print MAIL "<TABLE cellSpacing=5 border=1 cellPadding=0>\n";
+
+print MAIL "<TD align=center bgcolor=lightyellow>Interface</TD>\n";
+print MAIL "<TD align=center bgcolor=lightyellow>Hostname</TD>\n";
+print MAIL "<TD align=center bgcolor=lightyellow>IP Address</TD>\n";
+print MAIL "<TD align=center bgcolor=lightyellow>Hardware Addr</TD>\n";
+print MAIL "<TD align=center bgcolor=lightyellow>Duplex</TD>\n";
+print MAIL "<TD align=center bgcolor=lightyellow>Received</TD>\n";
+print MAIL "<TD align=center bgcolor=lightyellow>Transmitted</TD>\n";
+
+# the following is only a test
+# $network{$a[4]}="100 half";
+
+for ( $i = 0; $i <= $#a; $i++) {
+	print MAIL "<TR>\n";
+	if ( $network{$a[$i]} eq "" ) {
+		$network{$a[$i]}=$network{$etheraddr{$hwaddr{$a[$i]}}};
+	}
+	if ( $hostname{$a[$i]} eq "" ) {
+		$hostname{$a[$i]} = "\&nbsp;";
+	}
+	if ( $ip{$a[$i]} eq "" ) {
+		$ip{$a[$i]} = "\&nbsp;";
+	}
+	if ( $RX{$a[$i]} eq "" ) {
+		$RX{$a[$i]} = "\&nbsp;";
+	}
+	if ( $TX{$a[$i]} eq "" ) {
+		$TX{$a[$i]} = "\&nbsp;";
+	}
+
+	if ( $network{$a[$i]} =~ /[hH]alf/ ) {
+		$bgcolor="red";
+		$alert=1;
+	} else {
+		$bgcolor="ivory";
+	}
+	print MAIL "<TD align=center bgcolor=$bgcolor>" . $a[$i] . "</TD>\n";
+	print MAIL "<TD align=center bgcolor=$bgcolor>" . $hostname{$a[$i]} . "</TD>\n";
+	print MAIL "<TD align=center bgcolor=$bgcolor>" . $ip{$a[$i]} . "</TD>\n";
+	print MAIL "<TD align=center bgcolor=$bgcolor>" . $hwaddr{$a[$i]} . "</TD>\n" ;
+	print MAIL "<TD align=center bgcolor=$bgcolor>" . $network{$a[$i]} . "</TD>\n";
+	print MAIL "<TD align=center bgcolor=$bgcolor>" . $RX{$a[$i]} . "</TD>\n";
+	print MAIL "<TD align=center bgcolor=$bgcolor>" . $TX{$a[$i]} . "</TD>\n";
+	print MAIL "</TR>\n";
+}
+print MAIL "</TABLE>\n";
+
+close(MAIL);
+
+exit $alert;
+
+# RX bytes
+#           RX bytes:230808807645 (214.9 GiB)  TX bytes:113774935542 (105.9 GiB)
+
+
+# @lines=`/sbin/ifconfig -a | grep HWaddr`;
+# 
+# @a=();
+# for  ( $i = 0; $i <= $#lines; $i++) {
+# #   print $lines[$i];
+#     @ni=split(/[ \t]+/, $lines[$i]);
+# 	print $ni[0] . " " . $ni[4] . "\n";
+#     @a=(@a, $ni[0]);
+# }
+
+# @aiste1d.nam.nsroot.net bin % /sbin/ifconfig -a | grep HWaddr  
+# bond0     Link encap:Ethernet  HWaddr 00:1A:4B:BE:B9:CE  
+# bond0:0   Link encap:Ethernet  HWaddr 00:1A:4B:BE:B9:CE  
+# bond0:1   Link encap:Ethernet  HWaddr 00:1A:4B:BE:B9:CE  
+# bond0:2   Link encap:Ethernet  HWaddr 00:1A:4B:BE:B9:CE  
+# eth0      Link encap:Ethernet  HWaddr 00:17:08:7D:9E:82  
+# eth1      Link encap:Ethernet  HWaddr 00:1A:4B:BE:B9:D0  
+# eth2      Link encap:Ethernet  HWaddr 00:1A:4B:BE:B9:CE  
+# eth3      Link encap:Ethernet  HWaddr 00:17:08:7D:9E:83  
+

@@ -1,0 +1,113 @@
+#!/bin/ksh
+
+# abvmstat.ksh
+# version 0.2
+# Collect vmstat output together with necessary configuration information
+# Usage: see usage() function
+
+usage(){
+  print abvmstat - a wrapper to collect system performance metrics via vmstat
+  print "Usage: abvmstat [-s sample_rate] [-l duration_in_hours] [-o output_path] [-f output_file]"
+  print "    -s specifies the sampling rate in seconds. Default 60 seconds."
+  print "    -l specifies how many hours data to collect. Default 24 hours."
+  print "    -o specifies the output directory. Default current working directory."
+  print "    -f specifies the output file name. It overrides -o option. Default host-date-time.vmstat"
+}
+
+progName="abvmstat"
+progVer="0.2"
+
+while getopts ":s:l:o:f:h" arg
+do
+  case $arg in
+    s)
+      sampleRate=$OPTARG
+      ;;
+    l)
+      durationH=$OPTARG
+      ;;
+    o)
+      outputPath=$OPTARG
+      ;;
+    f)
+      outputFile=$OPTARG
+      ;;
+    h)
+      usage
+      exit 1
+      ;;
+    :)
+      print Error: option -$OPTARG needs an argument
+      usage
+      exit 1
+      ;;
+    *)
+      print Error: invalid option -$OPTARG
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+hostName=`uname -n`;
+
+if [ -z $outputPath ]
+then outputPath=`pwd`
+fi
+
+if [ -z $outputFile ]
+then outputFile=$outputPath/$hostName-`date +"%y%m%d-%H%M"`.vmstat
+fi
+
+if [ -z $sampleRate ]
+# rerun vmstat every hour
+then sampleRate=60
+fi
+
+if [ -z $durationH ]
+then durationH=24
+fi
+
+count=`expr $durationH \* 3600 / $sampleRate`
+CMD="vmstat $sampleRate 2"
+
+print Writing output to $outputFile ...
+
+coresPerSocket=`cat /proc/cpuinfo | grep "^core id" | sort | uniq | wc -l`;
+sockets=`cat /proc/cpuinfo | grep "^physical id" | sort | uniq | wc -l`;
+cores=`expr $coresPerSocket \* $sockets`;
+procs=`cat /proc/cpuinfo | grep "^processor" | wc -l`
+vmstat -s | grep "total memory" | read totalMem tempStr
+vmstat -s | grep "total swap" | read totalSwap tempStr
+
+{
+print AAA,command,$progName $@
+print AAA,version,$progVer
+print AAA,host,$hostName
+print AAA,os,$(uname -s),$(uname -r)
+print AAA,time,`date +"%H:%M:%S"`
+print AAA,date,`date +"%m/%d/%Y"`
+print AAA,interval,$sampleRate
+print AAA,snapshots,$count
+
+print CONF,processors,$procs
+print CONF,cores,$cores
+print CONF,sockets,$sockets
+print CONF,mem,$totalMem
+print CONF,swap,$totalSwap
+
+print VMST,header,`vmstat | head -2 | tail -1`
+} | tee $outputFile
+
+
+for i in {1..$count}
+do
+{
+  timestamp=$(date +"%m/%d/%Y %H:%M:%S")
+  print ZZZZ,$i,$timestamp
+  print VMST,$i,`$CMD | tail -1`
+} | tee -a $outputFile
+done
+
+print Completed successfully
+

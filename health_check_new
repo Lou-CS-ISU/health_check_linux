@@ -1,0 +1,311 @@
+#! /bin/ksh
+
+. ~/.profile
+
+export _POSIX2_VERSION=199209
+export COLUMNS=250
+export PROG=`basename $0`
+export PROGDIR=`dirname $0`
+export NOW=`date '+%Y%m%d_%H%M%S'`
+export HOST=`uname -n | cut -d. -f1`
+export LOGDIR=~/health_out/$(hostname)
+export LOGFILE=$LOGDIR/$PROG.$NOW.$HOST.log
+
+if [ ! -z "$1" ]
+then
+	debug=1
+else
+	debug=""
+fi
+
+RC=0
+
+rm -f $LOGFILE
+touch $LOGFILE
+
+send_email()
+{
+	#set -x
+
+	. $PROGDIR/$PROG.$HOST.email.env
+	/usr/lib/sendmail -v -t <<-!END! > /dev/null 2>&1 
+	From: $FROM 
+	To: $TO_G_14
+	Cc: $CC_G_14
+	Subject: $1
+	Return-Path: $FROM
+	Content-Type: text/html; charset=us-ascii
+	
+	`cat $LOGFILE.html`
+	<BR>
+	.
+	!END!
+}
+
+echo "<a name=top></a>" >> $LOGFILE.html
+echo "<table  cellSpacing=5 border=1 cellPadding=0><tbody>" >> $LOGFILE.html
+echo "<tr>" >> $LOGFILE.html
+
+echo "<hr size=2 noshade>" >> $LOGFILE
+echo "<a name=\"Directory Permission\"></a>" >> $LOGFILE
+echo "<p>World Write Access Directory Permission Check</p>" >> $LOGFILE
+
+$PROGDIR/check_dir_perm_new  >> $LOGFILE
+
+dRC=$?
+
+RC=`expr $RC + $dRC`
+
+if [ $dRC = 0 ]
+then
+	echo "<td><A href=\"#Directory Permission\">Directory Permission</A></td>" >> $LOGFILE.html
+else
+	echo "<td bgcolor=red><A href=\"#Directory Permission\">Directory Permission</A></td>" >> $LOGFILE.html
+fi
+
+# Filesystem check
+
+echo "<BR><table><tr><td bgcolor=ivory><A href=\"#top\">go to top</A></td></tr></table>" >> $LOGFILE
+
+echo "<hr size=2 noshade>" >> $LOGFILE
+echo "<a name=\"File System Usage\"></a>" >> $LOGFILE
+echo "<p>File System Usage</p>" >> $LOGFILE
+
+$PROGDIR/check_df_new >> $LOGFILE
+
+fRC=$?
+
+RC=`expr $RC + $fRC`
+
+if [ $fRC = 0 ]
+then
+	echo "<td><A href=\"#File System Usage\">File System Usage</A></td>" >> $LOGFILE.html
+else
+	echo "<td bgcolor=red><A href=\"#File System Usage\">File System Usage</A></td>" >> $LOGFILE.html
+fi
+
+# network speed duplex check
+
+echo "<BR><table><tr><td bgcolor=ivory><A href=\"#top\">go to top</A></td></tr></table>" >> $LOGFILE
+
+echo "<hr size=2 noshade>" >> $LOGFILE
+echo "<a name=\"Network Interface\"></a>" >> $LOGFILE
+echo "<p>Network Interface</p>" >> $LOGFILE
+
+$PROGDIR/check_netif_speed_volume_new >> $LOGFILE
+
+iRC=$?
+
+RC=`expr $RC + $iRC`
+
+if [ $iRC = 0 ]
+then
+	echo "<td><A href=\"#Network Interface\">Network Interface</A></td>" >> $LOGFILE.html
+else
+	echo "<td bgcolor=red><A href=\"#Network Interface\">Network Interface</A></td>" >> $LOGFILE.html
+fi
+
+echo "<BR><table><tr><td bgcolor=ivory><A href=\"#top\">go to top</A></td></tr></table>" >> $LOGFILE
+
+echo "<hr size=2 noshade>" >> $LOGFILE
+echo "<a name=\"Latest Package Installation\"></a>" >> $LOGFILE
+echo "<p>Latest Package Installation</p>" >> $LOGFILE
+# echo "<pre>" >> $LOGFILE
+# rpm -aq --last | head -10 >> $LOGFILE
+# echo "</pre>" >> $LOGFILE
+
+$PROGDIR/check_new_rpm_new >> $LOGFILE
+
+rRC=$?
+
+RC=`expr $RC + $rRC`
+
+if [ $rRC = 0 ]
+then
+	echo "<td><A href=\"#Latest Package Installation\">Latest Package Installation</A></td>" >> $LOGFILE.html
+else
+	echo "<td bgcolor=red><A href=\"#Latest Package Installation\">Latest Package Installation</A></td>" >> $LOGFILE.html
+fi
+
+echo "<BR><table><tr><td bgcolor=ivory><A href=\"#top\">go to top</A></td></tr></table>" >> $LOGFILE
+
+
+
+echo "<hr size=2 noshade>" >> $LOGFILE
+echo "<a name=\"Top I\"></a>" >> $LOGFILE
+echo "<p>Top</p>" >> $LOGFILE
+$PROGDIR/check_top_new >> $LOGFILE
+
+tRC=$?
+
+RC=`expr $RC + $tRC`
+
+if [ $tRC = 0 ]
+then
+	echo "<td><A href=\"#Top I\">Top 20 processes</A></td>" >> $LOGFILE.html
+else
+	echo "<td bgcolor=red><A href=\"#Top I\">Top 20 processes</A></td>" >> $LOGFILE.html
+fi
+
+echo "<BR><table><tr><td bgcolor=ivory><A href=\"#top\">go to top</A></td></tr></table>" >> $LOGFILE
+
+
+echo "<hr size=2 noshade>" >> $LOGFILE
+echo "<a name=\"Top M\"></a>" >> $LOGFILE
+echo "<p>Memory Usage</p>" >> $LOGFILE
+$PROGDIR/check_mem_new >> $LOGFILE
+
+tRC=$?
+
+RC=`expr $RC + $tRC`
+
+if [ $tRC = 0 ]
+then
+        echo "<td><A href=\"#Top M\">Memory Usage</A></td>" >> $LOGFILE.html
+else
+        echo "<td bgcolor=red><A href=\"#Top M\">Memory Usage</A></td>" >> $LOGFILE.html
+fi
+
+echo "<BR><table><tr><td bgcolor=ivory><A href=\"#top\">go to top</A></td></tr></table>" >> $LOGFILE
+
+
+
+echo "<hr size=2 noshade>" >> $LOGFILE
+echo "<a name=\"Top p\"></a>" >> $LOGFILE
+echo "<p>Top process Count order by no. of processes</p>" >> $LOGFILE
+$PROGDIR/check_per_user_process_count_new >> $LOGFILE
+
+pRC=$?
+
+RC=`expr $RC + $pRC`
+
+if [ $pRC = 0 ]
+then
+        echo "<td><A href=\"#Top p\">Top process count order by no. of processes</A></td>" >> $LOGFILE.html
+else
+        echo "<td bgcolor=red><A href=\"#Top p\">Top process Count order by no. of processes</A></td>" >> $LOGFILE.html
+fi
+
+echo "<BR><table><tr><td bgcolor=ivory><A href=\"#top\">go to top</A></td></tr></table>" >> $LOGFILE
+
+echo "<hr size=2 noshade>" >> $LOGFILE
+echo "<a name=\"Vmstat\"></a>" >> $LOGFILE
+echo "<p>Vmstat</p>" >> $LOGFILE
+$PROGDIR/check_vmstat_new >> $LOGFILE
+
+vRC=$?
+
+RC=`expr $RC + $vRC`
+
+if [ $vRC = 0 ]
+then
+	echo "<td><A href=\"#Vmstat\">Vmstat check</A></td>" >> $LOGFILE.html
+else
+	echo "<td bgcolor=red><A href=\"#Vmstat\">Vmstat check</A></td>" >> $LOGFILE.html
+fi
+
+echo "<BR><table><tr><td bgcolor=ivory><A href=\"#top\">go to top</A></td></tr></table>" >> $LOGFILE
+
+echo "<hr size=2 noshade>" >> $LOGFILE
+echo "<a name=\"IPC\"></a>" >> $LOGFILE
+echo "<p>Shared Mem and Semaphore</p>" >> $LOGFILE
+$PROGDIR/check_ipcs_new >> $LOGFILE
+
+ipcRC=$?
+
+RC=`expr $RC + $ipcRC`
+
+if [ $ipcRC = 0 ]
+then
+	echo "<td><A href=\"#IPC\">Shared Mem and Semaphore</A></td>" >> $LOGFILE.html
+else
+	echo "<td bgcolor=red><A href=\"#IPC\">Shared Mem and Semaphore</A></td>" >> $LOGFILE.html
+fi
+
+echo "<BR><table><tr><td bgcolor=ivory><A href=\"#top\">go to top</A></td></tr></table>" >> $LOGFILE
+
+###################################
+
+	echo "<hr size=2 noshade>" >> $LOGFILE
+	echo "<a name=\"EME Status\"></a>" >> $LOGFILE
+	echo "<p>EME Status</p>" >> $LOGFILE
+
+	echo "<pre>" >> $LOGFILE
+	$PROGDIR/check_EME_status_new  >> $LOGFILE
+	emeRC=$?
+	echo "</pre>" >> $LOGFILE
+
+	RC=`expr $RC + $emeRC`
+
+	if [ $emeRC = 0 ]
+	then
+	        echo "<td><A href=\"#EME Status\">EME Status</A></td>" >> $LOGFILE.html
+	else
+	        echo "<td bgcolor=red><A href=\"#EME Status\">EME Status</A></td>" >> $LOGFILE.html
+	fi
+
+	echo "<BR><table><tr><td bgcolor=ivory><A href=\"#top\">go to top</A></td></tr></table>" >> $LOGFILE
+
+#################################
+
+        echo "<hr size=2 noshade>" >> $LOGFILE
+        echo "<a name=\"Daemon Check\"></a>" >> $LOGFILE
+        echo "<p>Daemon Check</p>" >> $LOGFILE
+
+        echo "<pre>" >> $LOGFILE
+        $PROGDIR/check_daemon_new  >> $LOGFILE
+        daemonRC=$?
+        echo "</pre>" >> $LOGFILE
+
+        RC=`expr $RC + $daemonRC`
+
+        if [ $daemonRC = 0 ]
+        then
+                echo "<td><A href=\"#Daemon Check\">Check Daemon</A></td>" >> $LOGFILE.html
+        else
+                echo "<td bgcolor=red><A href=\"#Daemon Check\">Check Daemon</A></td>" >> $LOGFILE.html
+        fi
+
+        echo "<BR><table><tr><td bgcolor=ivory><A href=\"#top\">go to top</A></td></tr></table>" >> $LOGFILE
+
+###############################
+echo "<hr size=2 noshade>" >> $LOGFILE
+echo "<a name=\"/var/log/messages\"></a>" >> $LOGFILE
+echo "<p>tail -200 /var/log/messages</p>" >> $LOGFILE
+echo "<pre>" >> $LOGFILE
+tail -40 /var/log/messages >> $LOGFILE
+echo "</pre>" >> $LOGFILE
+
+echo "<td><A href=\"#/var/log/messages\">/var/log/messages</A></td>" >> $LOGFILE.html
+
+echo "<BR><table><tr><td bgcolor=ivory><A href=\"#top\">go to top</A></td></tr></table>" >> $LOGFILE
+
+echo "</tr>" >> $LOGFILE.html
+echo "</tbody></table>" >> $LOGFILE.html
+
+cat $LOGFILE >> $LOGFILE.html
+
+ISSUES=`cat /tmp/subject_issues 2>/dev/null | perl -e 's/\n/& /g' -p | perl -e 's/& $//g' -p`
+
+if [ $RC = 0 ]
+
+then
+	if [ ! -z "$debug" ]
+	then
+		send_email "SUCCESS:$HOST: $PROG "
+		exit 0
+	fi
+
+else
+	send_email "ALERT:$HOST: $PROG $ISSUES" 
+fi
+
+rm -f $LOGFILE
+
+mv /tmp/subject_issues /tmp/subject_issues_$NOW 2>/dev/null
+
+#~/health_check/create_index_html
+
+find $LOGDIR -mtime +30 | grep -v rpm_checked | xargs rm -f
+
+find /tmp/ -mtime +30 -name 'subject_issues_*' 2>/dev/null | xargs rm -f

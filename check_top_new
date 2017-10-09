@@ -1,0 +1,172 @@
+#! /bin/ksh
+
+PROG=`basename $0`
+PROGDIR=`dirname $0`
+host=`hostname | awk -F '.' '{ print $1 }'`
+TMPDIR=/tmp/
+. $PROGDIR/$PROG.env
+
+NOW=`date '+%Y%m%d_%H%M%S'`
+HOST=`uname -n | cut -d. -f1`
+
+export COLUMNS=250
+
+# top - 09:06:52 up 4 days, 59 min, 59 users, load average: 13.30, 15.98, 18.60  15
+# top - 23:10:14 up 6 days, 16:05,  2 users,  load average: 0.48, 0.66, 0.79     14
+# top - 04:19:56 up 26 min,         1 user,   load average: 6.33, 4.93, 3.56     13
+
+# Tasks: 497 total,   1 running, 478 sleeping,   0 stopped,  18 zombie
+# Cpu(s): 35.2% us, 11.0% sy,  0.0% ni, 49.7% id,  2.2% wa,  0.2% hi,  1.7% si
+# Mem:  16254216k total, 16240584k used,    13632k free,    25196k buffers
+# Swap:  8388472k total,     6072k used,  8382400k free, 11116648k cached
+# 
+#   PID USER      PR  NI  VIRT  RES  SHR S %CPU %MEM    TIME+  COMMAND            
+# 31794 aboper    15   0  5684 1132  612 R    6  0.0   0:00.04 top                
+#     1 root      16   0  4752  516  432 S    0  0.0   3:20.52 init               
+
+top -c -b -n2 | awk '/^top/{i++}i==2' | head -70 | grep -v $PNAME | grep -v 'jbd2/dm' | grep -vE "(top -c -b -n2|awk \/\^top\/{i\+\+}i==2)" > $TMPDIR/$PROG.$NOW.$HOST.out
+
+awk -v LOAD_THRESHOLD=$LOAD_THRESHOLD -v CPU_THRESHOLD=$CPU_THRESHOLD -v TIME_THRESHOLD=$TIME_THRESHOLD -v IO_THRESHOLD=$IO_THRESHOLD 'BEGIN{top_alert=0;alert=0;}{
+	if ( $1 == "top" ) {
+		print "<TABLE cellSpacing=5 border=1 cellPadding=0>";
+		print "<TBODY>";
+		print "<TR>";
+		if ( NF == 15 ) {
+			split($13, a, ",");
+			printf "<TD align=center bgcolor=lightyellow>%s</TD>", $1;
+			printf "<TD align=center bgcolor=lightyellow>%s</TD>", $3;
+			printf "<TD align=center bgcolor=lightyellow>%s %s %s %s %s</TD>", $4, $5, $6, $7, $8;
+			printf "<TD align=center bgcolor=lightyellow>%s %s</TD>", $9, $10;
+			printf "<TD align=center bgcolor=lightyellow>%s %s</TD>", $11, $12;
+		} else if ( NF == 14 ) {
+			split($12, a, ",");
+			printf "<TD align=center bgcolor=lightyellow>%s</TD>", $1;
+			printf "<TD align=center bgcolor=lightyellow>%s</TD>", $3;
+			printf "<TD align=center bgcolor=lightyellow>%s %s %s %s</TD>", $4, $5, $6, $7;
+			printf "<TD align=center bgcolor=lightyellow>%s %s</TD>", $8, $9;
+			printf "<TD align=center bgcolor=lightyellow>%s %s</TD>", $10, $11;
+                } else if ( NF == 13 ) {
+                        split($11, a, ",");
+                        printf "<TD align=center bgcolor=lightyellow>%s</TD>", $1;
+                        printf "<TD align=center bgcolor=lightyellow>%s</TD>", $3;
+                        printf "<TD align=center bgcolor=lightyellow>%s %s %s</TD>", $4, $5, $6;
+                        printf "<TD align=center bgcolor=lightyellow>%s %s</TD>", $7, $8;
+                        printf "<TD align=center bgcolor=lightyellow>%s %s</TD>", $9, $10;
+		} else {
+			split($10, a, ",");
+			printf "<TD align=center bgcolor=lightyellow>%s</TD>", $1;
+			printf "<TD align=center bgcolor=lightyellow>%s</TD>", $3;
+			printf "<TD align=center bgcolor=lightyellow>%s %s</TD>", $4, $5;
+			printf "<TD align=center bgcolor=lightyellow>%s %s</TD>", $6, $7;
+			printf "<TD align=center bgcolor=lightyellow>%s %s</TD>", $8, $9;
+		}
+		if ( a[1] >= LOAD_THRESHOLD ) {
+			color="red";
+			alert=alert+1;
+                        print "HIGH LOAD AVERAGE " >> "/tmp/subject_issues"
+		} else {
+			color="lightyellow";
+		}
+		if ( NF == 14 ) {
+			printf "<TD align=center bgcolor=%s>%s</TD>", color, $12;
+			printf "<TD align=center bgcolor=%s>%s</TD>", color, $13;
+			printf "<TD align=center bgcolor=%s>%s</TD>", color, $14;
+		} else if ( NF == 15 ) {
+			printf "<TD align=center bgcolor=%s>%s</TD>", color, $13;
+			printf "<TD align=center bgcolor=%s>%s</TD>", color, $14;
+			printf "<TD align=center bgcolor=%s>%s</TD>", color, $15;
+		} else if ( NF == 13 ) {
+                        printf "<TD align=center bgcolor=%s>%s</TD>", color, $11;
+                        printf "<TD align=center bgcolor=%s>%s</TD>", color, $12;
+                        printf "<TD align=center bgcolor=%s>%s</TD>", color, $13;
+		} else {
+			printf "<TD align=center bgcolor=%s>%s</TD>", color, $10;
+			printf "<TD align=center bgcolor=%s>%s</TD>", color, $11;
+			printf "<TD align=center bgcolor=%s>%s</TD>", color, $12;
+		}
+		print "</TR>";
+		top=1;
+		next;
+	} 
+	if ( PID == 1 ) {
+		print "<TR>";
+		split($11, a, ":");
+		if ( $9 >= CPU_THRESHOLD && a[1] >= TIME_THRESHOLD ) {
+			
+			for (i=1; i<12; i++) {
+				printf "<TD align=center bgcolor=red>%s</TD>\n", $i; 
+			}
+			for (i=12; i<=NF; i=i+12) {
+				printf "<TD align=center bgcolor=red>%s %s %s %s %s %s %s %s %s %s %s</TD>\n", $i, $(i+1), $(i+2), $(i+3), $(i+4), $(i+5), $(i+6), $(i+7), $(i+8), $(i+9), $(i+10), $(i+11), $(i+12), $(i+13), $(i+14), $(i+15), $(i+16), $(i+17), $(i+18), $(i+19);
+			}
+			alert=alert+1;
+			print "LONG RUNNING PROCESS " >> "/tmp/subject_issues"
+		} else {
+
+			 for (i=1; i<12; i++) {
+                                printf "<TD align=center bgcolor=ivory>%s</TD>\n", $i;
+                        }
+
+			for (i=12; i<=NF; i=i+12) {
+				printf "<TD align=center bgcolor=ivory>%s %s %s %s %s %s %s %s %s %s %s</TD>\n", $i, $(i+1), $(i+2), $(i+3), $(i+4), $(i+5), $(i+6), $(i+7), $(i+8), $(i+9), $(i+10), $(i+11), $(i+12), $(i+13), $(i+14), $(i+15), $(i+16), $(i+17), $(i+18), $(i+19);
+			}
+		}
+		print "</TR>";
+		next;
+	}
+	if ( $1 == "PID" ) {
+		print "</TABLE>";
+		print "</TBODY>";
+		print "<TABLE cellSpacing=5 border=1 cellPadding=0>";
+		print "<TBODY>";
+		print "<TR>";
+		for (i=1; i<=NF; i++) {
+			printf "<TD align=center bgcolor=lightyellow>%s</TD>\n", $i;
+		}
+		print "</TR>";
+		PID=1;
+		top=0;
+		next;
+	}
+	if ( top ==  1 ) {
+		print "<TR>";
+		if ( $1 == "Tasks:" || $1 == "Mem:" || $1 == "Swap:" ) {
+		  printf "<TD align=center bgcolor=lightyellow>%s</TD>", $1;
+                        for (i=2; i<=NF; i=i+2) {
+                                printf "<TD align=center bgcolor=lightyellow>%s %s</TD>\n", $i, $(i+1);
+                        }
+	      } else if ( $1 == "Cpu(s):" ) {
+		  printf "<TD align=center bgcolor=lightyellow>%s</TD>", $1;
+			for (i=2; i<=NF; i=i+2) {
+				split($i, a, "%");
+				if ( a[2] == "wa," ) {
+				   split(a[1], b, ".")
+					if ( b[1] >= IO_THRESHOLD ) { 
+				            printf "<TD align=center bgcolor=red>%s %s</TD>\n", $i, $(i+1);
+					    alert=alert+1;
+					    print "HIGH IO " >> "/tmp/subject_issues"
+					} else {
+					    printf "<TD align=center bgcolor=lightyellow>%s %s</TD>\n", $i, $(i+1); 
+				   	}
+				} else {
+				   printf "<TD align=center bgcolor=lightyellow>%s %s</TD>\n", $i, $(i+1);
+				}
+			}
+	      }	else {
+			for (i=1; i<=NF; i++) {
+				printf "<TD align=center bgcolor=lightyellow>%s</TD>\n", $i;
+			}
+		}
+		print "</TR>";
+	}
+}END{
+		print "</TABLE>";
+		print "</TBODY>";
+		exit alert;
+}' $TMPDIR/$PROG.$NOW.$HOST.out
+
+RC=$?
+
+rm -f $TMPDIR/$PROG.$NOW.$HOST.out
+
+exit $RC

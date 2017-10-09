@@ -1,0 +1,60 @@
+#! /bin/ksh
+
+PROG=`basename $0`
+PROGDIR=`dirname $0`
+DATA_DIR=$LOGDIR/rpm_checked/
+TMPDIR=/tmp
+host=`hostname | awk -F '.' '{ print $1 }'`
+NOW=`date '+%Y%m%d_%H%M%S'`
+
+. $PROGDIR/$PROG.env
+
+export LANG=en_US.UTF-8
+HOST=`uname -n | cut -d. -f1`
+
+lRC=0
+export lRC
+
+LC_TIMEsave="${LC_TIME}";  LC_TIME="en_US.UTF-8"
+rpm -aq --last --queryformat '%{name} %{installtime:date}\n' | head -10 > $TMPDIR/$PROG.$NOW.$HOST.out
+LC_TIME="${LC_TIMEsave}"; unset LC_TIMEsave
+
+echo "<TABLE  cellSpacing=5 border=1 cellPadding=0>"
+echo "<TBODY>"
+
+echo "<TR><TD align=center bgcolor=lightyellow>Package Name</TD align=center bgcolor=lightyellow><TD align=center bgcolor=lightyellow>Install Date</TD align=center bgcolor=lightyellow><TD align=center bgcolor=lightyellow>Days Old</TD align=center bgcolor=lightyellow></TR>"
+
+cat $TMPDIR/$PROG.$NOW.$HOST.out | { while read aline
+do
+        package=`echo $aline | cut -d" " -f1`
+        cr_date=`echo $aline | awk '{
+                for (i=2; i<=NF; i++) {
+                        printf "%s ", $i
+                }
+        }END{printf "\n";}'`
+
+        DATE_N_DAYS=`$PROGDIR/parse_date_w_date_diff_new $cr_date 2>/dev/null`
+
+        DAYS_OLD=`echo $DATE_N_DAYS | cut -d" " -f2`
+
+        if [ $DAYS_OLD -le $DAYS_OLD_THRESHOLD -a ! -f ${DATA_DIR}$PROG.$package.$HOST.checked ]
+        then
+                printf "<TR><TD align=center bgcolor=red>%s</TD><TD align=center bgcolor=red>%s</TD><TD align=center bgcolor=red>%s</TD></TR>\n" $package $DATE_N_DAYS
+                lRC=`expr $lRC + 1`
+                touch ${DATA_DIR}$PROG.$package.$HOST.checked
+        else
+                printf "<TR><TD align=center bgcolor=ivory>%s</TD><TD align=center bgcolor=ivory>%s</TD><TD align=center bgcolor=ivory>%s</TD></TR>\n" $package $DATE_N_DAYS
+        fi
+done
+
+echo "</TABLE>"
+echo "</TBODY>"
+}
+
+if [ $lRC -gt 0 ]; then
+   echo "NEW PACKAGES " >> "/tmp/subject_issues"
+fi
+
+rm -f $TMPDIR/$PROG.$NOW.$HOST.out
+
+exit $lRC

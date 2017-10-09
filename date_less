@@ -1,0 +1,64 @@
+#! /usr/bin/perl
+
+BEGIN{
+	push(@INC, "/opt/perl/5.8.5/lib/perl5/vendor_perl/5.8.5");
+}
+
+# print $0 . " $#ARGV {date string}\n";
+
+if ( $#ARGV le 0 ) {
+	print $0 . " {date string} {+/- number of days}\n";
+	exit 1;
+}
+
+# my $time = join ' ', @ARGV;
+
+sub myctime {
+    package myctime;
+
+    local($ltime) = @_;
+    local($[) = 0;
+    local($sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst);
+
+    # Determine what time zone is in effect.
+    # Use GMT if TZ is defined as null, local time if TZ undefined.
+    # There's no portable way to find the system default timezone.
+
+    $TZ = defined($ENV{'TZ'}) ? ( $ENV{'TZ'} ? $ENV{'TZ'} : 'GMT' ) : '';
+    ($sec, $min, $hour, $mday, $mon, $year, $wday, $yday, $isdst) =
+        ($TZ eq 'GMT') ? gmtime($ltime) : localtime($ltime);
+
+    # Hack to deal with 'PST8PDT' format of TZ
+    # Note that this can't deal with all the esoteric forms, but it
+    # does recognize the most common: [:]STDoff[DST[off][,rule]]
+
+    if($TZ=~/^([^:\d+\-,]{3,})([+-]?\d{1,2}(:\d{1,2}){0,2})([^\d+\-,]{3,})?/){
+        $TZ = $isdst ? $4 : $1;
+    }
+    $TZ .= ' ' unless $TZ eq '';
+
+    $year += 1900;
+#    sprintf("%s %s %2d %2d:%02d:%02d %s%4d\n",
+#      $DoW[$wday], $MoY[$mon], $mday, $hour, $min, $sec, $TZ, $year);
+#    sprintf("%4d-%02d-%02d:%02d%02d%02d",
+#      $year, $mon+1, $mday, $hour, $min, $sec);
+    sprintf("%4d-%02d-%02d",
+      $year, $mon+1, $mday);
+}
+1;
+
+# $time = "Wed Mar  19 17:30:00 2008 EDT";
+
+use Date::Parse;
+my $secs = str2time($ARGV[0]);
+
+# print "'$time' parses as:\n", "'$secs' (".gmtime($secs).")\n";
+# 
+# print "'$time' parses as:\n", "'$secs' (".localtime($secs).")\n";
+
+# print "ARGV[0] $ARGV[0] ARGV[1] $ARGV[1]\n";
+
+# print $secs . " " . myctime($secs) . "\n";
+print myctime($secs) . "\n";
+print myctime($secs - $ARGV[1] * 3600 * 24) . "\n";
+

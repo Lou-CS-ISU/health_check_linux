@@ -1,0 +1,26 @@
+/* ----------------- DEVCORS_ETL_MONITOR_BOX ----------------- */ 
+
+insert_job: DEVCORS_ETL_MONITOR_BOX   job_type: b 
+owner: ccpetl1
+permission: mx,me
+description: "Health Check Box"
+date_conditions: 1
+days_of_week: all
+start_times: 0,10,20,30,40,50
+alarm_if_fail: 0
+application: 1CCP
+
+/* ----------------- EVCORS_ETL_MONITOR_CODE ----------------- */
+ 
+ insert_job: DEVCORS_ETL_MONITOR_CODE   job_type: c
+ box_name: DEVCORS_ETL_MONITOR_BOX
+ command: /src/ccpetl1/dev/abinitio/ccp/ccp_pub/health_check/health_check_new
+ machine: cdpra04a0400.wellsfargo.com
+ owner: ccpetl1
+ permission: mx,me
+ description: "Health Check Code"
+ std_out_file: >> $AUTOSYS_LOG_PATH/$AUTO_JOB_NAME.log
+ std_err_file: >> $AUTOSYS_ERR_PATH/$AUTO_JOB_NAME.err
+ alarm_if_fail: 0
+ profile: /run/PROFILE_ID/ENV/.profile
+ application: 1CCP

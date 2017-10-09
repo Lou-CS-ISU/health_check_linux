@@ -1,0 +1,53 @@
+#! /bin/ksh
+
+PROGDIR=`dirname $0`
+PROG=`basename $0`
+
+. $PROGDIR/check_ai_license_new.env
+
+# (:/home/aboper)> ipcs -s -t -l   
+# 
+# ------ Semaphore Limits --------
+# max number of arrays = 1024
+# max semaphores per array = 250
+# max semaphores system wide = 84000
+# max ops per semop call = 50
+# semaphore max value = 32767
+# 
+# (:/home/aboper)> ipcs -s -t -l -u
+# 
+# ------ Semaphore Status --------
+# used arrays = 196
+# allocated semaphores = 643
+
+ipcs -s -t -l | grep "max number of arrays" | awk '{print $NF}' > /tmp/$PROG.limit
+
+ipcs -s -t -l -u | grep "used arrays" | awk '{print $NF}' > /tmp/$PROG.used
+
+echo limit `cat /tmp/$PROG.limit` used `cat /tmp/$PROG.used`
+
+PERCENTAGE=$(echo `cat /tmp/$PROG.limit /tmp/$PROG.used` | awk '{ 
+	if ( $2 / $1 > 0.30 ) { 
+		print $2 / $1;
+	} else {
+		print "NORMAL";
+	}
+}')
+
+if [  $PERCENTAGE != NORMAL ]
+then
+	/usr/lib/sendmail -t -v <<-!END! 2>&1 | mail -s "$PROG cron output" $FROM
+	From: $FROM 
+	To: $TO_G_14
+	Cc: $CC_G_14
+	Subject: Used semaphore `cat /tmp/$PROG.used` approaching OS limit `cat /tmp/$PROG.limit` : `uname -n` 
+	Return-Path: $FROM
+	Content-Type: text/html; charset=us-ascii
+	
+	At percentage $PERCENTAGE.
+
+	.
+	!END!
+	exit 0
+fi
+

@@ -1,0 +1,59 @@
+#! /bin/sh
+
+PROG=`basename $0`
+PROGDIR=`dirname $0`
+TMPDIR=/tmp/
+NOW=`date '+%Y%m%d_%H%M%S'`
+
+HOST=`uname -n | cut -d. -f1`
+
+# procs -----------memory---------- ---swap-- -----io---- --system-- ----cpu----
+#  r  b   swpd   free   buff  cache   si   so    bi    bo   in    cs us sy id wa
+#  1  0   6376 2962740  81168 5324736    0    0   778   122   22    54  3  2 94  0
+#  1  0   6376 2964876  81176 5322348    0    0  9472  1041 20754 20963  3  3 94  0
+#  0  0   6376 2964940  81180 5322300    0    0  8192   857 18825 17470  1  2 97  0
+
+vmstat 2 3 > $TMPDIR/$PROG.$NOW.$HOST.out
+
+. $PROGDIR/$PROG.env
+
+awk -v PO=$PO 'BEGIN{print "<TABLE  cellSpacing=5 border=1 cellPadding=0><TBODY>\n";alert=0;}{
+	print "<TR>";
+	if ( $1 == "procs" ) {
+		printf "<TD align=center bgcolor=lightyellow COLSPAN=2>%s</TD><TD align=center bgcolor=lightyellow COLSPAN=4>%s</TD><TD align=center bgcolor=lightyellow COLSPAN=2>%s</TD><TD align=center bgcolor=lightyellow COLSPAN=2>%s<TD align=center bgcolor=lightyellow COLSPAN=2>%s</TD><TD align=center bgcolor=lightyellow COLSPAN=4>%s</TD>\n", $1, $2, $3, $4, $5, $6;
+		print "</TR>";
+		next;
+	}
+	if ( $1 == "r" ) {
+		for (i=1; i<=NF; i++) {
+			printf "<TD align=center bgcolor=lightyellow>%s</TD>\n", $i
+		}
+		print "</TR>";
+		next;
+	}
+	if ( NR > 3 && $8 >= PO ) {
+		for (i=1; i<=NF; i++) {
+			printf "<TD align=center bgcolor=red>%s</TD>\n", $i
+		}
+		alert=1;
+		print "</TR>";
+		next;
+	}
+	
+        for (i=1; i<=NF; i++) {
+		printf "<TD align=center bgcolor=ivory>%s</TD>\n", $i
+	}
+	print "</TR>";
+        
+}END{print "</TBODY></TABLE>\n"; exit alert;}' $TMPDIR/$PROG.$NOW.$HOST.out
+
+RC=$?
+
+if [ $RC -gt 0 ]; then 
+   echo "PAGE OUT VMSTAT " >> "/tmp/subject_issues"
+fi
+
+rm -f $TMPDIR/$PROG.$NOW.$HOST.out
+
+exit $RC
+

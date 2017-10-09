@@ -1,0 +1,37 @@
+#! /bin/ksh
+host=`hostname | awk -F '.' '{ print $1 }'`
+REPORT_DIR=~/health_out/$(hostname)
+INDEX_HTML=$REPORT_DIR/index.html
+
+rm -f $INDEX_HTML
+touch $INDEX_HTML
+chmod 744 $INDEX_HTML
+
+HOST=`uname -n | cut -d"." -f1`
+
+echo "<PRE>" >> $INDEX_HTML
+echo "<meta http-equiv='cache-control' content='no-cache'>" >> $INDEX_HTML
+echo "<meta http-equiv='expires' content='0'>" >> $INDEX_HTML
+echo "<meta http-equiv='pragma' content='no-cache'>" >> $INDEX_HTML
+echo "</PRE>" >> $INDEX_HTML
+
+echo "<table  cellSpacing=5 border=1 cellPadding=0><tbody>" >> $INDEX_HTML
+
+echo "<tr><td bgcolor=lightyellow>Timestamp</td><td bgcolor=lightyellow>Machine</td><td bgcolor=lightyellow>Status</td><td bgcolor=lightyellow>URL</td></tr>" >> $INDEX_HTML
+
+for i in `ls -t $REPORT_DIR | grep ^health_check.*\.html$`
+do
+	j=`basename $i`
+	timestamp=`echo $j | cut -d"." -f2`
+	machine=`echo $j | cut -d"." -f3`
+	issue=`cat /tmp/subject_issues_$timestamp 2>/dev/null | perl -e 's/\n/& /g' -p | perl -e 's/& $//g' -p`
+
+	if grep bgcolor=red $REPORT_DIR/$i | grep -v ">top<" > /dev/null
+	then
+		echo "<tr></td><td bgcolor=ivory>$timestamp</td><td bgcolor=ivory>$machine</td><td bgcolor=ivory>$issue</td><td bgcolor=red><A href=\"http://${HOST}/abinitio/health_check/$j\">Open</A></td></tr>" >> $INDEX_HTML
+	else
+		echo "<tr></td><td bgcolor=ivory>$timestamp</td><td bgcolor=ivory>$machine</td><td bgcolor=ivory>SUCCESS</td><td bgcolor=ivory><A href=\"http://${HOST}/abinitio/health_check/$j\">Open</A></td></tr>" >> $INDEX_HTML
+	fi
+done
+
+echo "</tbody></table>" >> $INDEX_HTML

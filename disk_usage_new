@@ -1,0 +1,18 @@
+#!/bin/ksh
+
+LOGDIR=/home/abiadmin/logs
+NOW=`date '+%Y%m%d_%H%M%S'`
+
+full_filesystems=`df -k | grep -Ev "(mapper|Used)" | grep -v app07 | grep % | awk '{print $(NF-1),"\t",$NF}'  | awk '{if($1>=90)print $2;}'`
+
+for dir in $full_filesystems
+do
+     dirname=`echo $dir | perl -e 's/\///g' -p`
+
+      find $dir -type d -maxdepth 5 | xargs -I {} du -shk "{}" | sort -rn -k1 | head -100 >> $LOGDIR/30_day_max_5_${NOW}_${dirname}.rpt &
+
+      find $dir -type d -maxdepth 3 | xargs -I {} du -shk "{}" | sort -rn -k1 | head -100 >> $LOGDIR/30_day_max_3_${NOW}_${dirname}.rpt &
+
+      ### FILES find -type f -exec du -Sh {} + | sort -rh | head -n 5
+done
+

@@ -1,0 +1,37 @@
+#/bin/ksh
+
+alias diff='diff -W $(( 400 ))'
+PROG=`basename $0`
+PROGDIR=`dirname $0`
+HOST=`uname -n | cut -d. -f1`
+
+ps -alef | grep -E "(XXabbridged|Xabworkloadd|abreporterd)" | grep -E "(ccpetl|root)" | awk '{ print $15" "$16" "$17" "$18" "$19 }' | sort > /tmp/process_found_${HOST}
+
+diff -b --minimal --side-by-side $PROGDIR/check_daemon_new.${HOST}.env /tmp/process_found_${HOST} > /tmp/daemon_diff_${HOST}
+
+missing=`cat /tmp/daemon_diff_${HOST} | grep '<' | perl -e 's/ *<//g' -p | perl -e 's/ /_/g' -p`
+
+rm -f /tmp/daemon_diff_${HOST}
+rm -f /tmp/process_found_${HOST}
+
+if [[ ${#missing} > 0 ]]; then 
+
+        echo "<table border=1 bgcolor=lightyellow>"
+        echo "<tr align=center><td>Missing Daemons</tr>"
+
+	for i in $missing 
+	do
+		echo "<tr align=center bgcolor=red><td>$i</tr>"
+	done
+        echo "</table>"
+        echo "DAEMON ISSUE " >> "/tmp/subject_issues"
+        exit 1
+
+else
+        
+        echo "<table border=1 bgcolor=lightyellow>"
+        echo "<tr align=center><td>Missing Daemons</tr>"
+	echo "<tr align=center  bgcolor=lightyellow><td>No Missing</tr>"
+        echo "</table>"
+        exit 0
+fi

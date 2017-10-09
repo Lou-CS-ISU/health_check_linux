@@ -1,0 +1,53 @@
+#! /bin/ksh
+
+PROG=`basename $0`
+PROGDIR=`dirname $0`
+host=`hostname | awk -F '.' '{ print $1 }'`
+TMPDIR=/tmp/
+
+EME_NAME=`echo $AB_AIR_ROOT | awk -F/ '{
+        if ($2 == "") {
+                c="";
+                for (i=4; i<=NF; i++) {
+                        c=sprintf("%s/%s", c, $i)
+                }
+                print c;
+        } else {
+                print;
+        }
+}'`
+
+air -root $AB_AIR_ROOT repository show-server > $TMPDIR/$PROG.out 2>&1
+
+RC=$?
+
+if [ $RC = "0" ] ; then
+
+	SERVER_ID=`cat $TMPDIR/$PROG.out | grep "Server ID" | awk -F":" '{print $2}' | sed -e 's/ *//g'`
+
+	AB_HOME=`cat $TMPDIR/$PROG.out | grep "AB_HOME" | awk -F":" '{print $2}' | sed -e 's/ *//g'`
+
+	VERSION=`cat $TMPDIR/$PROG.out | grep  "Version" | awk -F":" '{print $2}' | sed -e 's/ *//g'`
+
+	CONNECTIONS=`cat $TMPDIR/$PROG.out | grep "Connections" | awk -F":" '{print $2}' | sed -e 's/ *//g'`
+
+	echo "<table border=1 bgcolor=lightyellow>"
+	echo "<tr align=center><td>Parameters</th><td>EME Info</th></tr><tr align=center bgcolor=ivory><td>EME Name</td><td>$AB_AIR_ROOT</td></tr><tr align=center bgcolor=ivory><td>Server ID</td><td>$SERVER_ID</td></tr>"
+	echo "<tr align=center bgcolor=ivory><td>AB_HOME</td><td>$AB_HOME</td></tr><tr align=center bgcolor=ivory><td>Version</td><td>$VERSION</td></tr>"
+	echo "<tr align=center bgcolor=ivory><td>Connections</td><td>$CONNECTIONS</td></tr></table>"
+	exit 0
+else
+	EME_STATUS=`cat $TMPDIR/$PROG.out | sed -e '1d'|sed -e '/----------------------/d'`
+
+	LOG=`tail -100 $EME_NAME.errlog | sed -e '/======================/d' -e '/^$/d' | tail -10 | sed -e 's/$/\<BR>/g'`
+
+	echo "<table border=1 bgcolor=lightyellow>"
+	echo "<tr align=center><td>Parameters</th><td>EME Info</th></tr>"
+	echo "<tr align=center bgcolor=ivory><td>EME Name</td><td align=left bgcolor=red>$AB_AIR_ROOT</td></tr>"
+	echo "<tr align=center bgcolor=ivory><td>Status</td><TD align=left BGCOLOR=red>$EME_STATUS</TD></tr>"
+	echo "<tr align=center bgcolor=ivory><td align=center bgcolor=red>tail -10 $EME_NAME.errlog</td><td align=left bgcolor=red>$LOG</td></tr>"
+	echo "</table>"
+	echo "EME ISSUE " >> "/tmp/subject_issues"
+        exit 1
+fi
+
